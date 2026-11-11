@@ -22,44 +22,80 @@ const images = [
 
 
 /* =========================================
-   SETTINGS
+   SLIDESHOW SETTINGS
+========================================= */
+
+const DISPLAY_TIME = 7000;
+
+const FADE_TIME = 1400;
+
+const WHITE_PAUSE = 450;
+
+
+
+/* =========================================
+   INTRO TIMING
 ========================================= */
 
 /*
-How long each image stays fully visible.
-
-5000  = 5 seconds
-7000  = 7 seconds
-10000 = 10 seconds
+RYTK
 */
 
-const DISPLAY_TIME = 5000;
+const INTRO_RYTK_TIME = 1000;
 
 
 /*
-Fade-out and fade-in duration.
-
-Must match the CSS transition duration.
+RY + TK
 */
 
-const FADE_TIME = 1500;
+const INTRO_SHORT_TIME = 1000;
 
 
 /*
-White pause between images.
-
-250 = subtle
-450 = recommended
-700 = stronger pause
+Time for initials to physically spread
+into their full-name positions.
 */
 
-const WHITE_PAUSE = 100;
+const INTRO_SPREAD_TIME = 1000;
+
+
+/*
+Time for missing characters to fade in.
+*/
+
+const INTRO_REVEAL_TIME = 1000;
+
+
+/*
+Hold complete names briefly in centre.
+*/
+
+const INTRO_FULL_HOLD = 750;
+
+
+/*
+Diagonal movement into header.
+Must roughly match CSS 1.35s transition.
+*/
+
+const INTRO_HEADER_MOVE = 1400;
+
+
+/*
+Small hold once aligned.
+*/
+
+const INTRO_HEADER_HOLD = 250;
 
 
 
 /* =========================================
    ELEMENTS
 ========================================= */
+
+const intro =
+    document.getElementById("intro");
+
 
 const frame =
     document.querySelector(".slideshow-frame");
@@ -80,24 +116,41 @@ const slideB =
 
 let currentIndex = 0;
 
+let activeSlide =
+    slideA;
 
-let activeSlide = slideA;
+let hiddenSlide =
+    slideB;
+
+let timer =
+    null;
+
+let isTransitioning =
+    false;
+
+let imageQueue =
+    [];
 
 
-let hiddenSlide = slideB;
 
+/* =========================================
+   WAIT
+========================================= */
 
-let timer = null;
+function wait(ms) {
 
+    return new Promise(
+        (resolve) => {
 
-let isTransitioning = false;
+            setTimeout(
+                resolve,
+                ms
+            );
 
+        }
+    );
 
-/*
-Stores the upcoming random sequence.
-*/
-
-let imageQueue = [];
+}
 
 
 
@@ -105,18 +158,42 @@ let imageQueue = [];
    PRELOAD ALL IMAGES
 ========================================= */
 
-const preloadedImages = [];
+function preloadImages() {
+
+    const tasks =
+        images.map(
+            (src) => {
+
+                return new Promise(
+                    (resolve) => {
+
+                        const img =
+                            new Image();
 
 
-images.forEach((src) => {
+                        img.onload =
+                            resolve;
 
-    const img = new Image();
 
-    img.src = src;
+                        img.onerror =
+                            resolve;
 
-    preloadedImages.push(img);
 
-});
+                        img.src =
+                            src;
+
+                    }
+                );
+
+            }
+        );
+
+
+    return Promise.allSettled(
+        tasks
+    );
+
+}
 
 
 
@@ -126,10 +203,6 @@ images.forEach((src) => {
 
 function shuffle(array) {
 
-    /*
-    Fisher-Yates shuffle.
-    */
-
     for (
         let i = array.length - 1;
         i > 0;
@@ -138,15 +211,21 @@ function shuffle(array) {
 
         const j =
             Math.floor(
-                Math.random() * (i + 1)
+                Math.random() *
+                (i + 1)
             );
 
 
-        const temp = array[i];
+        const temp =
+            array[i];
 
-        array[i] = array[j];
 
-        array[j] = temp;
+        array[i] =
+            array[j];
+
+
+        array[j] =
+            temp;
 
     }
 
@@ -158,20 +237,13 @@ function shuffle(array) {
 
 
 /* =========================================
-   CREATE RANDOM IMAGE QUEUE
+   CREATE RANDOM QUEUE
 ========================================= */
 
 function createImageQueue() {
 
-    /*
-    Generate index numbers for every image
-    except the image currently visible.
-
-    This prevents the same image appearing
-    twice in a row.
-    */
-
-    const availableImages = [];
+    const availableImages =
+        [];
 
 
     for (
@@ -180,21 +252,23 @@ function createImageQueue() {
         i++
     ) {
 
-        if (i !== currentIndex) {
+        if (
+            i !== currentIndex
+        ) {
 
-            availableImages.push(i);
+            availableImages.push(
+                i
+            );
 
         }
 
     }
 
 
-    /*
-    Randomise their order.
-    */
-
     imageQueue =
-        shuffle(availableImages);
+        shuffle(
+            availableImages
+        );
 
 }
 
@@ -206,22 +280,14 @@ function createImageQueue() {
 
 function getNextImageIndex() {
 
-    /*
-    When the queue is empty,
-    create another random sequence.
-    */
-
-    if (imageQueue.length === 0) {
+    if (
+        imageQueue.length === 0
+    ) {
 
         createImageQueue();
 
     }
 
-
-    /*
-    Remove and return the first
-    item from the random queue.
-    */
 
     return imageQueue.shift();
 
@@ -230,23 +296,7 @@ function getNextImageIndex() {
 
 
 /* =========================================
-   WAIT
-========================================= */
-
-function wait(ms) {
-
-    return new Promise((resolve) => {
-
-        setTimeout(resolve, ms);
-
-    });
-
-}
-
-
-
-/* =========================================
-   PREPARE NEXT IMAGE
+   PREPARE IMAGE
 ========================================= */
 
 async function prepareImage(
@@ -254,15 +304,11 @@ async function prepareImage(
     src
 ) {
 
-    element.src = src;
+    element.src =
+        src;
 
 
     try {
-
-        /*
-        Ensure the browser has decoded
-        the image before the transition.
-        */
 
         await element.decode();
 
@@ -271,8 +317,8 @@ async function prepareImage(
     catch (error) {
 
         /*
-        Continue normally if decode()
-        isn't supported by the browser.
+        Continue normally if
+        decode() is unsupported.
         */
 
     }
@@ -282,30 +328,23 @@ async function prepareImage(
 
 
 /* =========================================
-   SHOW NEXT RANDOM IMAGE
+   CHANGE IMAGE
 ========================================= */
 
 async function showNextImage() {
 
-    /*
-    Prevent multiple transitions
-    happening simultaneously.
-    */
-
-    if (isTransitioning) {
+    if (
+        isTransitioning
+    ) {
 
         return;
 
     }
 
 
-    isTransitioning = true;
+    isTransitioning =
+        true;
 
-
-
-    /*
-    Pick next image randomly.
-    */
 
     const nextIndex =
         getNextImageIndex();
@@ -313,8 +352,7 @@ async function showNextImage() {
 
 
     /*
-    Load the image completely before
-    beginning the visible transition.
+    Prepare next image first.
     */
 
     await prepareImage(
@@ -325,8 +363,7 @@ async function showNextImage() {
 
 
     /*
-    STEP 1
-    Fade current image to white.
+    Fade current image away.
     */
 
     activeSlide.classList.remove(
@@ -334,22 +371,24 @@ async function showNextImage() {
     );
 
 
-    await wait(FADE_TIME);
+    await wait(
+        FADE_TIME
+    );
 
 
 
     /*
-    STEP 2
-    Stay white briefly.
+    White pause.
     */
 
-    await wait(WHITE_PAUSE);
+    await wait(
+        WHITE_PAUSE
+    );
 
 
 
     /*
-    STEP 3
-    Fade new image in.
+    Fade next image in.
     */
 
     hiddenSlide.classList.add(
@@ -357,20 +396,19 @@ async function showNextImage() {
     );
 
 
-    await wait(FADE_TIME);
+    await wait(
+        FADE_TIME
+    );
+
+
+
+    currentIndex =
+        nextIndex;
 
 
 
     /*
-    Update current image index.
-    */
-
-    currentIndex = nextIndex;
-
-
-
-    /*
-    Swap visible and hidden layers.
+    Swap layers.
     */
 
     const previousSlide =
@@ -386,47 +424,43 @@ async function showNextImage() {
 
 
 
-    /*
-    Clear old hidden image.
-    */
-
-    hiddenSlide.src = "";
+    hiddenSlide.src =
+        "";
 
 
-    isTransitioning = false;
+    isTransitioning =
+        false;
 
 }
 
 
 
 /* =========================================
-   AUTOMATIC TIMER
+   AUTOMATIC SLIDESHOW
 ========================================= */
 
 function scheduleNextImage() {
 
-    clearTimeout(timer);
-
-
-    timer = setTimeout(
-
-        async () => {
-
-            await showNextImage();
-
-
-            /*
-            Start another full display period
-            after the new image has appeared.
-            */
-
-            scheduleNextImage();
-
-        },
-
-        DISPLAY_TIME
-
+    clearTimeout(
+        timer
     );
+
+
+    timer =
+        setTimeout(
+
+            async () => {
+
+                await showNextImage();
+
+
+                scheduleNextImage();
+
+            },
+
+            DISPLAY_TIME
+
+        );
 
 }
 
@@ -441,37 +475,22 @@ frame.addEventListener(
 
     async () => {
 
-        /*
-        Ignore clicks during transition.
-        */
-
-        if (isTransitioning) {
+        if (
+            isTransitioning
+        ) {
 
             return;
 
         }
 
 
-        /*
-        Stop automatic timer.
-        */
+        clearTimeout(
+            timer
+        );
 
-        clearTimeout(timer);
-
-
-
-        /*
-        Immediately show the next
-        random image.
-        */
 
         await showNextImage();
 
-
-
-        /*
-        Restart automatic timer.
-        */
 
         scheduleNextImage();
 
@@ -481,10 +500,205 @@ frame.addEventListener(
 
 
 /* =========================================
-   INITIAL RANDOM SEQUENCE
+   INTRO
 ========================================= */
 
-createImageQueue();
+async function runIntro() {
+
+    /*
+    Start loading all photographs
+    immediately behind the intro.
+    */
+
+    const imageLoading =
+        preloadImages();
+
+
+
+    /*
+    -----------------------------------------
+    STAGE 1
+
+    RYTK
+    -----------------------------------------
+    */
+
+    await wait(
+        INTRO_RYTK_TIME
+    );
+
+
+
+    /*
+    -----------------------------------------
+    STAGE 2
+
+    RY + TK
+
+    RY moves left.
+    TK moves right.
+    Plus fades into centre.
+    -----------------------------------------
+    */
+
+    intro.classList.add(
+        "stage-2"
+    );
+
+
+    await wait(
+        INTRO_SHORT_TIME
+    );
+
+
+
+    /*
+    -----------------------------------------
+    STAGE 3A
+
+    Invisible missing letters acquire
+    their full widths.
+
+    This physically moves R, Y, T and K
+    into the positions they occupy in:
+
+    Riichiro Yamamoto
+    Thomas Kerr Bell
+
+    The missing characters are still
+    invisible at this moment.
+    -----------------------------------------
+    */
+
+    intro.classList.add(
+        "stage-spread"
+    );
+
+
+    await wait(
+        INTRO_SPREAD_TIME
+    );
+
+
+
+    /*
+    -----------------------------------------
+    STAGE 3B
+
+    Missing characters fade in.
+
+    Initials remain exactly where
+    they already moved to.
+    -----------------------------------------
+    */
+
+    intro.classList.add(
+        "stage-reveal"
+    );
+
+
+    await wait(
+        INTRO_REVEAL_TIME
+    );
+
+
+
+    /*
+    Hold complete names briefly.
+    */
+
+    await wait(
+        INTRO_FULL_HOLD
+    );
+
+
+
+    /*
+    -----------------------------------------
+    STAGE 4
+
+    Each element travels independently.
+
+    Riichiro:
+    centre → diagonally top-left
+
+    +:
+    centre → straight upward
+
+    Thomas:
+    centre → diagonally top-right
+    -----------------------------------------
+    */
+
+    intro.classList.add(
+        "stage-header"
+    );
+
+
+    await wait(
+        INTRO_HEADER_MOVE
+    );
+
+
+
+    /*
+    At this point the intro text is
+    sitting directly over the real header.
+    */
+
+    await wait(
+        INTRO_HEADER_HOLD
+    );
+
+
+
+    /*
+    Wait for photographs before
+    revealing the website.
+    */
+
+    await imageLoading;
+
+
+
+    /*
+    Reveal actual website underneath.
+    */
+
+    document.body.classList.add(
+        "site-ready"
+    );
+
+
+
+    /*
+    Remove intro overlay gently.
+    */
+
+    intro.classList.add(
+        "exit"
+    );
+
+
+    await wait(
+        750
+    );
+
+
+    intro.remove();
+
+
+
+    /*
+    Start random slideshow.
+    */
+
+    createImageQueue();
+
+
+    scheduleNextImage();
+
+}
 
 
 
@@ -492,4 +706,4 @@ createImageQueue();
    START
 ========================================= */
 
-scheduleNextImage();
+runIntro();
